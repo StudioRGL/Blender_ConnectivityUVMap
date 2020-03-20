@@ -2,6 +2,7 @@
 
 
 import bpy, bmesh
+from mathutils import Vector
 MAX_ITERATIONS = 999
 
 class ConnectedVertex:
@@ -69,24 +70,51 @@ def generateConnectivityUVs():
 
         for vert in generations[-1]: # do the most recent generation
             edges = vert.link_edges
-            connectionInfo = {} # this will store vertex, distance pairs
+            connectionInfo = {} # TODO: this will store vertex, distance pairs
             for edge in edges:
                 for edgeVert in edge.verts:
+                    # if it's connected to any existing vertex
                     if edgeVert in unconnectedVerts:
-                        print (edgeVert)
+                        print (edgeVert.index, 'is connected')
                         newGeneration.append(edgeVert)
                         unconnectedVerts.remove(edgeVert)
                         # TODO: we could make sure that we're connecting via the shortest route, but that's an optimization for later....
 
+        if len(newGeneration) > 0:
+            generations.append(newGeneration)
+        else:
+            # didn't find anything new, I guess we're finished
+            finished = True
 
-            pass
-        # if it's connected to any existing vertex
-        # find the closest one
         iterations += 1 # keep a counter
-        finished = True
 
+    print('finished traversing network, ', len(unconnectedVerts), 'vertices left over')
 
+    # ok, now we have the 'generations', we can set them. TODO: Should set parent really! OR can we just guess from the order?
+    uv_layer = bm.loops.layers.uv.new('connectivity_UV')
+    # color_layer = bm.loops.layers.color.new('connectivity_RGB')
 
+    # zero everything
+    # for vert in bm.verts:
+    #    vert.link_loops[0][uv_layer].uv = Vector((-1,-1))
+
+    uvDict = {}
+
+    for iGeneration in range(len(generations)):
+        generation = generations[iGeneration]
+        for iVert in range(len(generation)):
+            vert = generation[iVert]
+            # vert.link_loops[0][uv_layer].uv = Vector((iVert/len(generation), iGeneration/len(generations)))
+            # vert.link_loops[0][color_layer] = Vector((iVert/len(generation), iGeneration/len(generations), 0, 1))
+            uvDict[vert] =  Vector((iVert/len(generation), iGeneration/len(generations)))
+            print ('setting vert ', vert.index, 'to UV', Vector((iVert/len(generation), iGeneration/len(generations))))
+            # UVMap
+
+    # now go thru all faces
+    for face in bm.faces:
+        for loop in face.loops:
+            uv = uvDict[loop.vert]
+            loop[uv_layer].uv = uv
 
 
     # Finish up, write the bmesh back to the mesh
