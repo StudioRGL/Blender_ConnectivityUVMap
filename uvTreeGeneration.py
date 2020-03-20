@@ -75,7 +75,7 @@ def generateConnectivityUVs():
                 for edgeVert in edge.verts:
                     # if it's connected to any existing vertex
                     if edgeVert in unconnectedVerts:
-                        print (edgeVert.index, 'is connected')
+                        # print (edgeVert.index, 'is connected')
                         newGeneration.append(edgeVert)
                         unconnectedVerts.remove(edgeVert)
                         # TODO: we could make sure that we're connecting via the shortest route, but that's an optimization for later....
@@ -106,14 +106,17 @@ def generateConnectivityUVs():
             vert = generation[iVert]
             # vert.link_loops[0][uv_layer].uv = Vector((iVert/len(generation), iGeneration/len(generations)))
             # vert.link_loops[0][color_layer] = Vector((iVert/len(generation), iGeneration/len(generations), 0, 1))
-            uvDict[vert] =  Vector((iVert/len(generation), iGeneration/len(generations)))
-            print ('setting vert ', vert.index, 'to UV', Vector((iVert/len(generation), iGeneration/len(generations))))
+            uvDict[vert] =  Vector(((iVert+1)/(len(generation)+1), (iGeneration+1)/(len(generations)+1)))
+            # print ('setting vert ', vert.index, 'to UV', Vector((iVert/len(generation), iGeneration/len(generations))))
             # UVMap
 
     # now go thru all faces
     for face in bm.faces:
         for loop in face.loops:
-            uv = uvDict[loop.vert]
+            if loop.vert in uvDict:
+                uv = uvDict[loop.vert] 
+            else:
+                uv = Vector((-1, -1))
             loop[uv_layer].uv = uv
 
 
