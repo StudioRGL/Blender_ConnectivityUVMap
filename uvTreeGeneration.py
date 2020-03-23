@@ -10,6 +10,7 @@ class TreeNode:
     """ used for building connectivity information"""
     u = None
     v = None
+    precalculatedURange = None
     vertex = None
     parent = None
     leftNeighbour = None
@@ -21,18 +22,28 @@ class TreeNode:
         self.children = []
     
     def uRange(self):
-        """returns the area between the left and right neighbours"""
-        if self.leftNeighbour is None:
-            uMin = 0
-        else:
-            uMin = (self.leftNeighbour.u + self.u) / 2
+        if self.precalculatedURange is None:
+            # we gotta calculate it!
+            """returns the area between the left and right neighbours"""
+            if self.leftNeighbour is None:
+                if self.parent is None:
+                    uMin = 0 # if we have no parent, just take the hard boundary
+                else:
+                    # we have a parent, lets look there
+                    uMin = self.parent.uRange()[0] # this will recursively calculate if necessary (!)
+            else:
+                uMin = (self.leftNeighbour.u + self.u) / 2
 
-        if self.rightNeighbour is None:
-            uMax = 1
-        else:
-            uMax = (self.u + self.rightNeighbour.u) / 2
-        
-        return [uMin, uMax]
+            if self.rightNeighbour is None:
+                if self.parent is None:
+                    uMax = 1
+                else:
+                    uMax = self.parent.uRange()[1] # again, recursively if necessary
+            else:
+                uMax = (self.u + self.rightNeighbour.u) / 2
+            self.precalculatedURange = [uMin, uMax]
+
+        return self.precalculatedURange
 
 
 def getMesh():
@@ -137,23 +148,8 @@ def analyseTree(generations):
                     # TODO: because we're going thru the branches in ascending order, we should actually be able to do the neighbours automatically?
                     # we just have to remember to parent *across* branches
                     
-                    leftNeighbour = None
                     if iChild > 0:
-                        leftNeighbour = parent.children[iChild-1]
-                    else:
-                        if parent.leftNeighbour is not None:
-                            leftNeighbourOfParent = parent.leftNeighbour
-
-                            # ok so we may have...cousins?
-                            nCousins = len(parent.leftNeighbour.children)
-                            if nCousins > 0:
-                                leftNeighbour = leftNeighbourOfParent.children[-1]
-                            leftNeighbourOfParent = parentGeneration[iParent-1] # https://www.urbandictionary.com/define.php?term=pibling lol
-                    if leftNeighbour is None:
-                        # this should get handled in u calculation I guess?
-                        pass
-                    else:
-                        child.leftNeighbour = leftNeighbour  # it will be the most recently-added one! FIRST GEN ONLY
+                        child.leftNeighbour = parent.children[iChild-1]  # it will be the most recently-added one! FIRST GEN ONLY
                         child.leftNeighbour.rightNeighbour = child  # link it up...
 
 
