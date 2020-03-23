@@ -4,13 +4,22 @@
 
 import bpy, bmesh
 from mathutils import Vector
+from enum import Enum
+
 MAX_ITERATIONS = 999
+UNUSED_UV = Vector((-1, -1))
+
+class AnalysisMode(Enum):
+    OMNIDIRECTIONAL = 0
+    UPWARDS = 1
+    DOWNWARDS = 2
 
 class TreeNode:
     """ used for building connectivity information"""
     u = None
     v = None
     precalculatedURange = None
+    precalculatedDistanceFromRoot = None
     vertex = None
     parent = None
     leftNeighbour = None
@@ -45,6 +54,20 @@ class TreeNode:
 
         return self.precalculatedURange
 
+    def distanceFromRoot(self):
+        # similar to uRange, recursive where necessary
+        if self.precalculatedDistanceFromRoot is None:
+            if self.parent is None:
+                self.precalculatedDistanceFromRoot = 0
+            else:
+                parentDistance = self.parent.distanceFromRoot()
+                vectorFromParent = Vector(self.vertex.co - self.parent.vertex.co)
+                distanceFromParent = vectorFromParent.length
+                self.precalculatedDistanceFromRoot = parentDistance + distanceFromParent
+
+        return self.precalculatedDistanceFromRoot
+
+
 
 def getMesh():
     """gets the selected mesh"""
@@ -67,7 +90,7 @@ def getMesh():
     return mesh
 
 
-def analyseMesh(bm, selectedVerts):
+def analyseMesh(bm, selectedVerts, analysisMode):
     """goes through the mesh generating connectivity information"""
     finished = False
     iterations = 0
@@ -93,13 +116,26 @@ def analyseMesh(bm, selectedVerts):
                 for edgeVert in edge.verts:
                     # if it's a new one
                     if edgeVert in unconnectedVerts:
-                        # ok, we found a connected one
-                        newTreeNode = TreeNode(edgeVert)
-                        newTreeNode.parent = node  # this is the only property we need to set right now
-                        node.children.append(newTreeNode)  # ok, just to make life easy gonna go both ways
-                        newGeneration.append(newTreeNode)
-                        unconnectedVerts.remove(edgeVert)
-                        # TODO: we could make sure that we're connecting via the shortest route, but that's an optimization for later....
+                        # ok, we found a connected one. But we may have to do extra checks!
+
+                        if analysisMode is AnalysisMode.OMNIDIRECTIONAL:
+                            valid = True
+                        else:
+                            parentHeight = node.vertex.co[2] # z axis up
+                            childHeight = edgeVert.co[2]
+
+                            if (analysisMode is AnalysisMode.UPWARDS and childHeight >= parentHeight) or (analysisMode is AnalysisMode.DOWNWARDS and childHeight <= parentHeight):
+                                    valid = True
+                            else:
+                                valid = False
+
+                        if valid is True:
+                            newTreeNode = TreeNode(edgeVert)
+                            newTreeNode.parent = node  # this is the only property we need to set right now
+                            node.children.append(newTreeNode)  # ok, just to make life easy gonna go both ways
+                            newGeneration.append(newTreeNode)
+                            unconnectedVerts.remove(edgeVert)
+                            # TODO: we could make sure that we're connecting via the shortest route, but that's an optimization for later....
 
         if len(newGeneration) > 0:
             generations.append(newGeneration)
@@ -143,7 +179,8 @@ def analyseTree(generations):
                     child = parent.children[iChild]
                     uRatio = (iChild+1)/(len(parent.children)+1)
                     child.u = (uRange[0] * uRatio) + (uRange[1]*(1-uRatio)) # lerp from side to side
-                    child.v = i/len(generations)  # TODO: make this distance-based later! right now it just sets v to be the generation
+                    # child.v = i/len(generations)  # TODO: make this distance-based later! right now it just sets v to be the generation
+                    child.v = child.distanceFromRoot()
 
                     # TODO: because we're going thru the branches in ascending order, we should actually be able to do the neighbours automatically?
                     # we just have to remember to parent *across* branches
@@ -175,11 +212,11 @@ def writeUVs(generations, bm):
             if loop.vert in uvDict:
                 uv = uvDict[loop.vert]
             else:
-                uv = Vector((-1, -1)) # disconnected ones
+                uv = UNUSED_UV # disconnected ones
             loop[uv_layer].uv = uv # shazam
 
 
-def generateConnectivityUVs():
+def generateConnectivityUVs(analysisMode):
     """the main function that does everything"""
 
     mesh = getMesh() # get the selected mesh
@@ -199,7 +236,7 @@ def generateConnectivityUVs():
     # ok, we got the selected verts
     print (len(selectedVerts), '/', len(bm.verts), 'vert(s) selected')
 
-    generations = analyseMesh(bm, selectedVerts)  # run analysis loop on mesh
+    generations = analyseMesh(bm, selectedVerts, analysisMode)  # run analysis loop on mesh
 
     analyseTree(generations) # run analysis loop on tree (this edits the 'generation' array's data)
 
@@ -214,5 +251,5 @@ def generateConnectivityUVs():
 
 
 # run code!
-generateConnectivityUVs()
+generateConnectivityUVs(AnalysisMode.DOWNWARDS)
 print ('Completed program.')
