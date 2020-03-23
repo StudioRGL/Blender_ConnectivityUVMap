@@ -13,11 +13,10 @@ class AnalysisMode(Enum):
 
 
 # USER CONFIGURABLE VARIABLES
-MAX_ITERATIONS = 999
-UNUSED_UV = Vector((-1, -1))
-ANALYSIS_MODE = AnalysisMode.OMNIDIRECTIONAL # from AnalysisMode.UPWARDS, AnalysisMode.DOWNWARDS, AnalysisMode.OMNIDIRECTIONAL
-
-
+UNUSED_UV = Vector((-999, -999)) # the UV assigned to undefined vertices, good to put this far away or ur gonna get fringes
+ANALYSIS_MODE = AnalysisMode.UPWARDS # from AnalysisMode.UPWARDS, AnalysisMode.DOWNWARDS, AnalysisMode.OMNIDIRECTIONAL
+HEIGHT_COMPARISON_THRESHOLD = 0.1 # if it's only a teeny bit up or down, do we still allow it?
+MAX_ITERATIONS = 999 # crash protection hopefully :-) In practise takes about 300 max
 
 class TreeNode:
     """ used for building connectivity information"""
@@ -128,8 +127,9 @@ def analyseMesh(bm, selectedVerts, analysisMode):
                         else:
                             parentHeight = node.vertex.co[2] # z axis up
                             childHeight = edgeVert.co[2]
+                            relativeChildHeight = childHeight-parentHeight
 
-                            if (analysisMode is AnalysisMode.UPWARDS and childHeight >= parentHeight) or (analysisMode is AnalysisMode.DOWNWARDS and childHeight <= parentHeight):
+                            if (analysisMode is AnalysisMode.UPWARDS and relativeChildHeight >= -HEIGHT_COMPARISON_THRESHOLD) or (analysisMode is AnalysisMode.DOWNWARDS and relativeChildHeight <= HEIGHT_COMPARISON_THRESHOLD):
                                     valid = True
                             else:
                                 valid = False
