@@ -118,19 +118,43 @@ def analyseTree(generations):
                 currentNode.v = 0  # it's a root node
                 if j > 0:
                     # for all except the leftmost one, set left neighbour
-                    currentNode.leftNeighbour = generation[j-1]  # it will be the most recently-added one!
+                    currentNode.leftNeighbour = generation[j-1]  # it will be the most recently-added one! FIRST GEN ONLY
                     currentNode.leftNeighbour.rightNeighbour = currentNode  # link it up...
         else: # for all generations except the root one
             parentGeneration = generations[i-1]
 
             # alright, we already know everything about the parent generation, including which children each parent has
-            for parent in parentGeneration:
+            for iParent in range(len(parentGeneration)):
+                parent = parentGeneration[iParent]
+
                 uRange = parent.uRange()
                 for iChild in range(len(parent.children)):
                     child = parent.children[iChild]
                     uRatio = (iChild+1)/(len(parent.children)+1)
                     child.u = (uRange[0] * uRatio) + (uRange[1]*(1-uRatio)) # lerp from side to side
                     child.v = i/len(generations)  # TODO: make this distance-based later! right now it just sets v to be the generation
+
+                    # TODO: because we're going thru the branches in ascending order, we should actually be able to do the neighbours automatically?
+                    # we just have to remember to parent *across* branches
+                    
+                    leftNeighbour = None
+                    if iChild > 0:
+                        leftNeighbour = parentGeneration[iChild-1]
+                    else:
+                        if parent.leftNeighbour is not None:
+                            leftNeighbourOfParent = parent.leftNeighbour
+                            
+                            # ok so we may have...cousins?
+                            nCousins = len(parent.leftNeighbour.children)
+                            if nCousins > 0:
+                                leftNeighbour = leftNeighbourOfParent.children[-1]
+                            leftNeighbourOfParent = parentGeneration[iParent-1] # https://www.urbandictionary.com/define.php?term=pibling lol
+                    if leftNeighbour is None:
+                        # this should get handled in u calculation I guess?
+                        pass
+                    else:
+                        child.leftNeighbour = leftNeighbour  # it will be the most recently-added one! FIRST GEN ONLY
+                        child.leftNeighbour.rightNeighbour = child  # link it up...
 
 
 
