@@ -8,6 +8,7 @@ MAX_ITERATIONS = 999
 class ConnectedVertex:
     """ used for building connectivity information"""
     
+    
     def __init__(self):
         self.data = []
 
@@ -40,12 +41,12 @@ def analyseMesh(bm, selectedVerts):
     iterations = 0
     generations = [selectedVerts] # set the selected verts to be the first generation
     unconnectedVerts = set(bm.verts)-set(selectedVerts)
-    rootDict = {} # stores the root of each connected vert
+    parentDict = {} # stores the parent vert of each connected vert
     
     # give each starting point a different root ID
     for i in range(len(generations[0])):
         vert = generations[0][i]
-        rootDict[vert] = (i+1)/(len(generations[0])+1)
+        parentDict[vert] = (i+1)/(len(generations[0])+1)
 
     # starts from the selected vertex
     # while we have unselected vertices (only works for the first island! so do until we don't have new vertices)
@@ -64,7 +65,7 @@ def analyseMesh(bm, selectedVerts):
                         # print (edgeVert.index, 'is connected')
                         newGeneration.append(edgeVert)
                         unconnectedVerts.remove(edgeVert)
-                        rootDict[edgeVert] = rootDict[vert] # just copy the root value from the parent
+                        parentDict[edgeVert] = vert # just copy the root value from the parent
                         # TODO: we could make sure that we're connecting via the shortest route, but that's an optimization for later....
 
         if len(newGeneration) > 0:
@@ -76,23 +77,68 @@ def analyseMesh(bm, selectedVerts):
         iterations += 1 # keep a counter
 
     print('finished traversing network, ', len(unconnectedVerts), 'vertices left over')
-    return [rootDict, generations]
+    return [parentDict, generations]
 
-def writeUVs(bm, rootDict, generations):
-    # ok, now we have the 'generations', we can set them. TODO: Should set parent really! OR can we just guess from the order?
+
+def writeUVs(bm, parentDict, generations):
+    # ok, now we have the 'generations', we can set them.
+
     uv_layer = bm.loops.layers.uv.new('connectivity_UV')
     # color_layer = bm.loops.layers.color.new('connectivity_RGB')
 
-    uvDict = {}
+    uvDict = {} # store the uv as a list of 2 vectors, with vert as the key
 
+    # naive version
+    # TODO: add distance calculation?
+    # for iGeneration in range(len(generations)):
+    #    generation = generations[iGeneration]
+    #    for iVert in range(len(generation)):
+    #        vert = generation[iVert]
+    #        uvDict[vert] =  Vector((0, (iGeneration+1)/(len(generations)+1)))
+
+    # branch-aware version:
+
+    # for each generation
     for iGeneration in range(len(generations)):
         generation = generations[iGeneration]
-        for iVert in range(len(generation)):
-            vert = generation[iVert]
-            uvDict[vert] =  Vector((rootDict[vert], (iGeneration+1)/(len(generations)+1)))
-            # UVMap
+        
+        # generate the uvs step by step
 
-    # now go thru all faces
+        if iGeneration == 0: 
+            # special case for the 'roots' of the tree
+        else:
+            # only do this if we're NOT on the first generation
+            parentGeneration = generations[iGeneration-1]
+            
+            childCount = {} # from the previous generation, key is vertex, value is child count
+            uRange = {} # the u space available (from halfway point to each neighbour)
+
+            for iParentVert in range(len(parentGeneration)):
+                parentVert = parentGeneration[iParentVert]
+                childCount[parentVert] = 0 # initialize as 'no children'
+                # turn to the left, turn to the right....
+                uMin = 0
+                uMax = 1
+                #if parentVert > 0:
+
+                uRange[parentVert] = [uMin, uMax]
+
+
+            # go through all the verts counting how many come from each parent vert
+            for iVert in range(len(generation)):
+                vert = generation[iVert]
+                parent = parentDict[vert]
+                childCount[parent] += 1  # increment the child count of the parent
+
+            # ok, now we know how many branches come off each parent, let's work out our uvs
+    
+    # for each parent
+    # find the uv range occupied by the parent (the halfway point between the left and right neighbours, or 0 or 1)
+    # for each child of the parent
+    # lay out within that range
+
+
+    # now go thru all faces and actually *write* the uvs
     for face in bm.faces:
         for loop in face.loops:
             if loop.vert in uvDict:
@@ -100,7 +146,6 @@ def writeUVs(bm, rootDict, generations):
             else:
                 uv = Vector((-1, -1))
             loop[uv_layer].uv = uv
-
 
 
 def generateConnectivityUVs():
