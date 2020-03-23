@@ -1,4 +1,4 @@
-# Blender_ConnectivityUVMap
+# Connectivity UV Map Generator for Blender
 Generates "Flowing" UVs based on a mesh's connectivity, tested in Blender 2.82 MacOS, should (hopefully?) work in 2.8+ on all platforms.
 
 ## Usage: ##
