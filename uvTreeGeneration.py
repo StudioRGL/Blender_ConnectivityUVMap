@@ -114,7 +114,7 @@ def analyseTree(generations):
             # evenly distribute u across the full width 0-1
             for j in range(len(generation)):
                 currentNode = generation[j]
-                currentNode.u = (i+1)/(len(generation)+1)
+                currentNode.u = (j+1)/(len(generation)+1)
                 currentNode.v = 0  # it's a root node
                 if j > 0:
                     # for all except the leftmost one, set left neighbour
@@ -139,11 +139,11 @@ def analyseTree(generations):
                     
                     leftNeighbour = None
                     if iChild > 0:
-                        leftNeighbour = parentGeneration[iChild-1]
+                        leftNeighbour = parent.children[iChild-1]
                     else:
                         if parent.leftNeighbour is not None:
                             leftNeighbourOfParent = parent.leftNeighbour
-                            
+
                             # ok so we may have...cousins?
                             nCousins = len(parent.leftNeighbour.children)
                             if nCousins > 0:
