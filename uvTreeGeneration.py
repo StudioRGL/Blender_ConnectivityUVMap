@@ -130,7 +130,7 @@ def analyseTree(generations):
                     child = parent.children[iChild]
                     uRatio = (iChild+1)/(len(parent.children)+1)
                     child.u = (uRange[0] * uRatio) + (uRange[1]*(1-uRatio)) # lerp from side to side
-                    child.v = j/len(generations)  # TODO: make this distance-based later! right now it just sets v to be the generation
+                    child.v = i/len(generations)  # TODO: make this distance-based later! right now it just sets v to be the generation
 
 
 
@@ -142,64 +142,12 @@ def writeUVs(generations, bm):
     uv_layer = bm.loops.layers.uv.new('connectivity_UV')
     # color_layer = bm.loops.layers.color.new('connectivity_RGB')
 
-    uvDict = {} # store the uv as a list of 2 vectors, with vert as the key
-
+    uvDict = {} # store the uv as a list of 2 vectors, with VERT as the key
     
-    #connectedVertices = [] # gonna be one for each vertex
-    #for v in bm.verts:
-    #    connectedVertices.append()
-    
-
-    # naive version
-    # TODO: add distance calculation?
-    # for iGeneration in range(len(generations)):
-    #    generation = generations[iGeneration]
-    #    for iVert in range(len(generation)):
-    #        vert = generation[iVert]
-    #        uvDict[vert] =  Vector((0, (iGeneration+1)/(len(generations)+1)))
-
-    # branch-aware version:
-
-    # for each generation
-    for iGeneration in range(len(generations)):
-        generation = generations[iGeneration]
-        
-        # generate the uvs step by step
-
-        if iGeneration == 0: 
-            # special case for the 'roots' of the tree
-            pass
-        else:
-            # only do this if we're NOT on the first generation
-            parentGeneration = generations[iGeneration-1]
-            
-            childCount = {} # from the previous generation, key is vertex, value is child count
-            uRange = {} # the u space available (from halfway point to each neighbour)
-
-            for iParentVert in range(len(parentGeneration)):
-                parentVert = parentGeneration[iParentVert]
-                childCount[parentVert] = 0 # initialize as 'no children'
-                # turn to the left, turn to the right....
-                uMin = 0
-                uMax = 1
-                #if parentVert > 0:
-
-                uRange[parentVert] = [uMin, uMax]
-
-
-            # go through all the verts counting how many come from each parent vert
-            for iVert in range(len(generation)):
-                vert = generation[iVert]
-                parent = parentDict[vert]
-                childCount[parent] += 1  # increment the child count of the parent
-
-            # ok, now we know how many branches come off each parent, let's work out our uvs
-    
-    # for each parent
-    # find the uv range occupied by the parent (the halfway point between the left and right neighbours, or 0 or 1)
-    # for each child of the parent
-    # lay out within that range
-
+    for generation in generations:
+        for node in generation:
+            v = node.vertex
+            uvDict[v] = [node.u, node.v]
 
     # now go thru all faces and actually *write* the uvs
     for face in bm.faces:
@@ -207,8 +155,8 @@ def writeUVs(generations, bm):
             if loop.vert in uvDict:
                 uv = uvDict[loop.vert]
             else:
-                uv = Vector((-1, -1))
-            loop[uv_layer].uv = uv
+                uv = Vector((-1, -1)) # disconnected ones
+            loop[uv_layer].uv = uv # shazam
 
 
 def generateConnectivityUVs():
