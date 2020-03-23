@@ -34,34 +34,15 @@ def getMesh():
     return mesh
 
 
-def generateConnectivityUVs():
-    """do the whole thing"""
-    mesh = getMesh() # get the selected mesh
-
-
-    # ok, we got the mesh, let's get the bmesh (from https://docs.blender.org/api/current/bmesh.html)
-    # Get a BMesh representation
-    bm = bmesh.new()   # create an empty BMesh
-    bm.from_mesh(mesh)   # fill it in from a Mesh
-    bm.verts.ensure_lookup_table() # make everything ok
-
-    # get selected verts
-    selectedVerts = []
-    for vert in bm.verts:
-        if vert.select:
-            selectedVerts.append(vert)
-    
-    # ok, we got the selected verts
-    print (len(selectedVerts), '/', len(bm.verts), 'vert(s) selected')
-
-
-    # prepare to run loop
+def analyseMesh(bm, selectedVerts):
+    """goes through the mesh generating connectivity information"""
     finished = False
     iterations = 0
     generations = [selectedVerts] # set the selected verts to be the first generation
     unconnectedVerts = set(bm.verts)-set(selectedVerts)
     rootDict = {} # stores the root of each connected vert
-
+    
+    # give each starting point a different root ID
     for i in range(len(generations[0])):
         vert = generations[0][i]
         rootDict[vert] = (i+1)/(len(generations[0])+1)
@@ -95,14 +76,35 @@ def generateConnectivityUVs():
         iterations += 1 # keep a counter
 
     print('finished traversing network, ', len(unconnectedVerts), 'vertices left over')
+    return [rootDict, generations]
+
+
+def generateConnectivityUVs():
+    """the main function that does everything"""
+
+    mesh = getMesh() # get the selected mesh
+
+    # ok, we got the mesh, let's get the bmesh (from https://docs.blender.org/api/current/bmesh.html)
+    # Get a BMesh representation
+    bm = bmesh.new()   # create an empty BMesh
+    bm.from_mesh(mesh)   # fill it in from a Mesh
+    bm.verts.ensure_lookup_table() # make everything ok
+
+    # get selected verts
+    selectedVerts = []
+    for vert in bm.verts:
+        if vert.select:
+            selectedVerts.append(vert)
+    
+    # ok, we got the selected verts
+    print (len(selectedVerts), '/', len(bm.verts), 'vert(s) selected')
+
+    # run analysis loop
+    rootDict, generations = analyseMesh(bm, selectedVerts)
 
     # ok, now we have the 'generations', we can set them. TODO: Should set parent really! OR can we just guess from the order?
     uv_layer = bm.loops.layers.uv.new('connectivity_UV')
     # color_layer = bm.loops.layers.color.new('connectivity_RGB')
-
-    # zero everything
-    # for vert in bm.verts:
-    #    vert.link_loops[0][uv_layer].uv = Vector((-1,-1))
 
     uvDict = {}
 
@@ -126,10 +128,6 @@ def generateConnectivityUVs():
     # Finish up, write the bmesh back to the mesh
     bm.to_mesh(mesh)
     bm.free()  # free and prevent further access
-    
-
-
-    pass
 
 
 
