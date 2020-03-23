@@ -14,10 +14,11 @@ class TreeNode:
     parent = None
     leftNeighbour = None
     rightNeighbour = None
-    children = []
+    children = []  # need to specifically redeclare this in init()?
     
     def __init__(self, vertex):
         self.vertex = vertex
+        self.children = []
     
     def uRange(self):
         """returns the area between the left and right neighbours"""
@@ -60,7 +61,6 @@ def analyseMesh(bm, selectedVerts):
     finished = False
     iterations = 0
     unconnectedVerts = set(bm.verts)-set(selectedVerts)
-    parentDict = {} # stores the parent vert of each connected vert # TODO: remove this, it's now in TreeNode
     
     # build the first row of 'tree nodes'
     firstGeneration = []
@@ -237,7 +237,7 @@ def generateConnectivityUVs():
 
     print('analysed tree')
 
-    # writeUVs(generations, bm)  # write the data to the uvs
+    writeUVs(generations, bm)  # write the data to the uvs
     
     # Finish up
     bm.to_mesh(mesh)  # write the bmesh back to the mesh
