@@ -6,13 +6,18 @@ import bpy, bmesh
 from mathutils import Vector
 from enum import Enum
 
-MAX_ITERATIONS = 999
-UNUSED_UV = Vector((-1, -1))
-
 class AnalysisMode(Enum):
     OMNIDIRECTIONAL = 0
     UPWARDS = 1
     DOWNWARDS = 2
+
+
+# USER CONFIGURABLE VARIABLES
+MAX_ITERATIONS = 999
+UNUSED_UV = Vector((-1, -1))
+ANALYSIS_MODE = AnalysisMode.OMNIDIRECTIONAL # from AnalysisMode.UPWARDS, AnalysisMode.DOWNWARDS, AnalysisMode.OMNIDIRECTIONAL
+
+
 
 class TreeNode:
     """ used for building connectivity information"""
@@ -154,6 +159,8 @@ def analyseTree(generations):
     """Once we've been through the mesh and got connection info, let's figure out what it all means"""
 
     # let's do this generation by generation
+    maxV = 0 # we use this to normalize the v axis later
+
     for i in range(len(generations)):
         generation = generations[i]
 
@@ -181,6 +188,7 @@ def analyseTree(generations):
                     child.u = (uRange[0] * uRatio) + (uRange[1]*(1-uRatio)) # lerp from side to side
                     # child.v = i/len(generations)  # TODO: make this distance-based later! right now it just sets v to be the generation
                     child.v = child.distanceFromRoot()
+                    maxV = max(maxV, child.v)
 
                     # TODO: because we're going thru the branches in ascending order, we should actually be able to do the neighbours automatically?
                     # we just have to remember to parent *across* branches
@@ -188,6 +196,14 @@ def analyseTree(generations):
                     if iChild > 0:
                         child.leftNeighbour = parent.children[iChild-1]  # it will be the most recently-added one! FIRST GEN ONLY
                         child.leftNeighbour.rightNeighbour = child  # link it up...
+        
+    # ok now we gotta normalize v
+    if maxV is not 0:
+        for g in generations:
+            for n in g:
+                n.v /= maxV
+    # simples
+
 
 
 
@@ -251,5 +267,5 @@ def generateConnectivityUVs(analysisMode):
 
 
 # run code!
-generateConnectivityUVs(AnalysisMode.DOWNWARDS)
+generateConnectivityUVs(ANALYSIS_MODE) # pick your analysis mode
 print ('Completed program.')
