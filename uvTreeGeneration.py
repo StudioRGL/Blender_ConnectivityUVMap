@@ -5,13 +5,17 @@ import bpy, bmesh
 from mathutils import Vector
 MAX_ITERATIONS = 999
 
-class ConnectedVertex:
+class TreeNode:
     """ used for building connectivity information"""
+    u = None
+    v = None
+    vertex = None
+    parent = None
+    leftNeighbour = None
+    rightNeighbour = None
     
-    
-    def __init__(self):
-        self.data = []
-
+    def __init__(self, vertex):
+        self.vertex = vertex
 
 
 def getMesh():
@@ -39,33 +43,37 @@ def analyseMesh(bm, selectedVerts):
     """goes through the mesh generating connectivity information"""
     finished = False
     iterations = 0
-    generations = [selectedVerts] # set the selected verts to be the first generation
     unconnectedVerts = set(bm.verts)-set(selectedVerts)
-    parentDict = {} # stores the parent vert of each connected vert
+    parentDict = {} # stores the parent vert of each connected vert # TODO: remove this, it's now in TreeNode
     
-    # give each starting point a different root ID
-    for i in range(len(generations[0])):
-        vert = generations[0][i]
-        parentDict[vert] = (i+1)/(len(generations[0])+1)
+    # build the first row of 'tree nodes'
+    firstGeneration = []
+    for i in range(len(selectedVerts)):
+        newTreeNode = TreeNode(selectedVerts[i])
+        firstGeneration.append(newTreeNode)
+    generations = [firstGeneration] # create the generations list, we're gonna add more as we go along
 
-    # starts from the selected vertex
+    print('Created first generation')
+
+
     # while we have unselected vertices (only works for the first island! so do until we don't have new vertices)
     while (finished is False) and (iterations < MAX_ITERATIONS):
         print('generation', len(generations), ', ', len(unconnectedVerts),'/',len(bm.verts), 'remaining' )
         # for all unconnected vertices:
         newGeneration = []
 
-        for vert in generations[-1]: # do the most recent generation
+        for node in generations[-1]: # do the most recent generation
+            vert = node.vertex
             edges = vert.link_edges
-            connectionInfo = {} # TODO: this will store vertex, distance pairs
             for edge in edges:
                 for edgeVert in edge.verts:
                     # if it's a new one
                     if edgeVert in unconnectedVerts:
-                        # print (edgeVert.index, 'is connected')
-                        newGeneration.append(edgeVert)
+                        # ok, we found a connected one
+                        newTreeNode = TreeNode(edgeVert)
+                        newTreeNode.parent = node # this is the only property we need to set right now
+                        newGeneration.append(newTreeNode)
                         unconnectedVerts.remove(edgeVert)
-                        parentDict[edgeVert] = vert # just copy the root value from the parent
                         # TODO: we could make sure that we're connecting via the shortest route, but that's an optimization for later....
 
         if len(newGeneration) > 0:
@@ -77,16 +85,44 @@ def analyseMesh(bm, selectedVerts):
         iterations += 1 # keep a counter
 
     print('finished traversing network, ', len(unconnectedVerts), 'vertices left over')
-    return [parentDict, generations]
+    
+    return generations
 
 
-def writeUVs(bm, parentDict, generations):
-    # ok, now we have the 'generations', we can set them.
+def analyseTree(generations):
+    """Once we've been through the mesh and got connection info, let's figure out what it all means"""
+
+    # let's do this generation by generation
+    for i in range(len(generations)):
+        generation = generations[i]
+
+        if i == 0:
+            # first generation only!
+            for j in range(len(generation)):
+                currentNode = generation[j]
+                currentNode.u = (i+1)/(len(generation)+1)
+                currentNode.v = 0  # it's a root node
+            if j > 0:
+                # for all except the leftmost one, set left neighbour
+                currentNode.leftNeighbour = generation[-1]  # it will be the most recently-added one!
+                currentNode.leftNeighbour.rightNeighbour = currentNode  # link it up...
+
+
+
+def writeUVs(generations, bm):
+    """just write the uvs hey"""
+    # ok, now we have the 'generations', we can do useful stuff with them.
 
     uv_layer = bm.loops.layers.uv.new('connectivity_UV')
     # color_layer = bm.loops.layers.color.new('connectivity_RGB')
 
     uvDict = {} # store the uv as a list of 2 vectors, with vert as the key
+
+    
+    #connectedVertices = [] # gonna be one for each vertex
+    #for v in bm.verts:
+    #    connectedVertices.append()
+    
 
     # naive version
     # TODO: add distance calculation?
@@ -106,6 +142,7 @@ def writeUVs(bm, parentDict, generations):
 
         if iGeneration == 0: 
             # special case for the 'roots' of the tree
+            pass
         else:
             # only do this if we're NOT on the first generation
             parentGeneration = generations[iGeneration-1]
@@ -168,9 +205,13 @@ def generateConnectivityUVs():
     # ok, we got the selected verts
     print (len(selectedVerts), '/', len(bm.verts), 'vert(s) selected')
 
-    rootDict, generations = analyseMesh(bm, selectedVerts)  # run analysis loop
+    generations = analyseMesh(bm, selectedVerts)  # run analysis loop on mesh
 
-    writeUVs(bm, rootDict, generations)  # write the data to the uvs
+    analyseTree(generations) # run analysis loop on tree (this edits generation's data)
+
+    print('analysed tree')
+
+    # writeUVs(generations, bm)  # write the data to the uvs
     
     # Finish up
     bm.to_mesh(mesh)  # write the bmesh back to the mesh
