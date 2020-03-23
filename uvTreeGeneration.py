@@ -1,5 +1,6 @@
 # Generates uvs for a mesh based on connectivity, useful for tree structures
 
+# TODO: sort vertices by x position before we do anything?
 
 import bpy, bmesh
 from mathutils import Vector
@@ -13,9 +14,24 @@ class TreeNode:
     parent = None
     leftNeighbour = None
     rightNeighbour = None
+    children = []
     
     def __init__(self, vertex):
         self.vertex = vertex
+    
+    def uRange(self):
+        """returns the area between the left and right neighbours"""
+        if self.leftNeighbour is None:
+            uMin = 0
+        else:
+            uMin = (self.leftNeighbour.u + self.u) / 2
+
+        if self.rightNeighbour is None:
+            uMax = 1
+        else:
+            uMax = (self.u + self.rightNeighbour.u) / 2
+        
+        return [uMin, uMax]
 
 
 def getMesh():
@@ -53,9 +69,6 @@ def analyseMesh(bm, selectedVerts):
         firstGeneration.append(newTreeNode)
     generations = [firstGeneration] # create the generations list, we're gonna add more as we go along
 
-    print('Created first generation')
-
-
     # while we have unselected vertices (only works for the first island! so do until we don't have new vertices)
     while (finished is False) and (iterations < MAX_ITERATIONS):
         print('generation', len(generations), ', ', len(unconnectedVerts),'/',len(bm.verts), 'remaining' )
@@ -71,7 +84,8 @@ def analyseMesh(bm, selectedVerts):
                     if edgeVert in unconnectedVerts:
                         # ok, we found a connected one
                         newTreeNode = TreeNode(edgeVert)
-                        newTreeNode.parent = node # this is the only property we need to set right now
+                        newTreeNode.parent = node  # this is the only property we need to set right now
+                        node.children.append(newTreeNode)  # ok, just to make life easy gonna go both ways
                         newGeneration.append(newTreeNode)
                         unconnectedVerts.remove(edgeVert)
                         # TODO: we could make sure that we're connecting via the shortest route, but that's an optimization for later....
@@ -96,16 +110,28 @@ def analyseTree(generations):
     for i in range(len(generations)):
         generation = generations[i]
 
-        if i == 0:
-            # first generation only!
+        if i == 0:  # first generation only!
+            # evenly distribute u across the full width 0-1
             for j in range(len(generation)):
                 currentNode = generation[j]
                 currentNode.u = (i+1)/(len(generation)+1)
                 currentNode.v = 0  # it's a root node
-            if j > 0:
-                # for all except the leftmost one, set left neighbour
-                currentNode.leftNeighbour = generation[-1]  # it will be the most recently-added one!
-                currentNode.leftNeighbour.rightNeighbour = currentNode  # link it up...
+                if j > 0:
+                    # for all except the leftmost one, set left neighbour
+                    currentNode.leftNeighbour = generation[j-1]  # it will be the most recently-added one!
+                    currentNode.leftNeighbour.rightNeighbour = currentNode  # link it up...
+        else: # for all generations except the root one
+            parentGeneration = generations[i-1]
+
+            # alright, we already know everything about the parent generation, including which children each parent has
+            for parent in parentGeneration:
+                uRange = parent.uRange()
+                for iChild in range(len(parent.children)):
+                    child = parent.children[iChild]
+                    uRatio = (iChild+1)/(len(parent.children)+1)
+                    child.u = (uRange[0] * uRatio) + (uRange[1]*(1-uRatio)) # lerp from side to side
+                    child.v = j/len(generations)  # TODO: make this distance-based later! right now it just sets v to be the generation
+
 
 
 
@@ -207,7 +233,7 @@ def generateConnectivityUVs():
 
     generations = analyseMesh(bm, selectedVerts)  # run analysis loop on mesh
 
-    analyseTree(generations) # run analysis loop on tree (this edits generation's data)
+    analyseTree(generations) # run analysis loop on tree (this edits the 'generation' array's data)
 
     print('analysed tree')
 
